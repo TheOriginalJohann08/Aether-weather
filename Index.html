@@ -1,0 +1,1553 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#0f172a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <title>Aether Weather Pro</title>
+    <!-- Google Fonts & Material Icons -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,1,0" rel="stylesheet">
+    
+    <style>
+        :root {
+            /* Material You Default Variables (Dynamic) */
+            --bg-main: #0f1419;
+            --bg-surface: rgba(27, 34, 42, 0.78);
+            --bg-card: rgba(35, 44, 54, 0.82);
+            --primary: #8ab4f8;
+            --on-primary: #00315c;
+            --text-main: #e3e8ee;
+            --text-sub: #b0bac5;
+            --radius-lg: 28px;
+            --radius-md: 20px;
+            --radius-sm: 14px;
+            --border: 1px solid rgba(255, 255, 255, 0.07);
+            --shadow: 0 6px 20px rgba(0, 0, 0, 0.22);
+            --backdrop: blur(12px);
+            --sky-top: #0f172a;
+            --sky-bottom: #1e293b;
+        }
+
+        /* Apple Liquid Glass Theme Overrides */
+        body.theme-glass {
+            --bg-surface: rgba(255, 255, 255, 0.09);
+            --bg-card: rgba(20, 26, 38, 0.36);
+            --primary: #ffffff;
+            --on-primary: #0b0c10;
+            --text-main: #ffffff;
+            --text-sub: rgba(255, 255, 255, 0.75);
+            --radius-lg: 24px;
+            --radius-md: 18px;
+            --border: 1px solid rgba(255, 255, 255, 0.22);
+            --shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.32), inset 0 1px 0.5px rgba(255, 255, 255, 0.25);
+            --backdrop: blur(24px) saturate(190%);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+
+        body {
+            background-color: var(--bg-main);
+            color: var(--text-main);
+            min-height: 100vh;
+            overflow-x: hidden;
+            padding-bottom: 110px;
+        }
+
+        /* =========================================================
+           DYNAMIC WEATHER SKY & CANVAS ANIMATION BACKGROUND
+           ========================================================= */
+        .weather-sky {
+            position: fixed;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            z-index: -2;
+            background: linear-gradient(180deg, var(--sky-top) 0%, var(--sky-bottom) 100%);
+            transition: background 1.2s ease;
+        }
+
+        #weather-canvas {
+            position: fixed;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        /* App Layout & Page Transitions */
+        .app-container {
+            max-width: 520px;
+            margin: 0 auto;
+            padding: 16px;
+            overflow-x: hidden;
+        }
+
+        .page { display: none; animation: fadeIn 0.28s ease; }
+        .page.active { display: block; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Apple Weather Horizontal Slide Page Transitions (Liquid Glass Only) */
+        body.theme-glass .page.slide-from-right {
+            animation: glassSlideFromRight 0.48s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+        }
+        body.theme-glass .page.slide-from-left {
+            animation: glassSlideFromLeft 0.48s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+        }
+        @keyframes glassSlideFromRight {
+            from { opacity: 0; transform: translateX(45px) scale(0.98); }
+            to { opacity: 1; transform: translateX(0) scale(1); }
+        }
+        @keyframes glassSlideFromLeft {
+            from { opacity: 0; transform: translateX(-45px) scale(0.98); }
+            to { opacity: 1; transform: translateX(0) scale(1); }
+        }
+
+        /* Top Bar & Search */
+        .top-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+        .search-box {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            background: var(--bg-card);
+            backdrop-filter: var(--backdrop);
+            -webkit-backdrop-filter: var(--backdrop);
+            border: var(--border);
+            border-radius: 50px;
+            padding: 10px 18px;
+            box-shadow: var(--shadow);
+        }
+        .search-box input {
+            background: none;
+            border: none;
+            color: var(--text-main);
+            width: 100%;
+            margin-left: 8px;
+            font-size: 15px;
+            outline: none;
+            user-select: text;
+        }
+        .search-box input::placeholder { color: var(--text-sub); }
+        .icon-btn {
+            background: var(--bg-card);
+            backdrop-filter: var(--backdrop);
+            -webkit-backdrop-filter: var(--backdrop);
+            border: var(--border);
+            color: var(--text-main);
+            width: 44px; height: 44px;
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer;
+            box-shadow: var(--shadow);
+            transition: transform 0.2s;
+        }
+        .icon-btn:active { transform: scale(0.9); }
+
+        /* Saved Cities Carousel */
+        .saved-cities {
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+            scrollbar-width: none;
+            margin-bottom: 14px;
+            padding-bottom: 4px;
+        }
+        .saved-cities::-webkit-scrollbar { display: none; }
+        .city-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 14px;
+            border-radius: 30px;
+            background: var(--bg-card);
+            backdrop-filter: var(--backdrop);
+            -webkit-backdrop-filter: var(--backdrop);
+            border: var(--border);
+            color: var(--text-sub);
+            font-size: 13px;
+            font-weight: 500;
+            white-space: nowrap;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .city-chip.active {
+            background: var(--primary);
+            color: var(--on-primary);
+            font-weight: 600;
+        }
+
+        /* Hero Section */
+        .hero {
+            text-align: center;
+            padding: 18px 10px 22px;
+            margin-bottom: 12px;
+            text-shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
+        }
+        .city-name { font-size: 30px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 6px; }
+        .temp-huge { font-size: 92px; font-weight: 300; line-height: 1; margin: 10px 0; letter-spacing: -3px; }
+        .condition-pill {
+            display: inline-flex; align-items: center; gap: 8px;
+            background: var(--primary); color: var(--on-primary);
+            padding: 6px 16px; border-radius: 50px;
+            font-weight: 600; font-size: 14px; margin-bottom: 8px;
+            text-shadow: none;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+        .hi-lo { color: var(--text-main); font-size: 15px; font-weight: 500; opacity: 0.9; }
+        .yesterday-badge {
+            display: inline-flex; align-items: center; gap: 4px;
+            margin-top: 8px; padding: 4px 12px;
+            border-radius: 20px; background: var(--bg-surface);
+            border: var(--border); font-size: 12px; color: var(--text-sub);
+        }
+
+        /* Cards & Containers */
+        .card {
+            background: var(--bg-card);
+            backdrop-filter: var(--backdrop);
+            -webkit-backdrop-filter: var(--backdrop);
+            border: var(--border);
+            border-radius: var(--radius-lg);
+            padding: 18px;
+            margin-bottom: 16px;
+            box-shadow: var(--shadow);
+        }
+        .card-title {
+            font-size: 13px; font-weight: 600; text-transform: uppercase;
+            letter-spacing: 0.8px; color: var(--text-sub);
+            display: flex; align-items: center; justify-content: space-between;
+            margin-bottom: 14px;
+        }
+        .card-title-left { display: flex; align-items: center; gap: 6px; }
+
+        /* Smart Alerts Banner */
+        .alert-item {
+            display: flex; align-items: center; gap: 12px;
+            background: rgba(255, 171, 64, 0.2);
+            border-left: 4px solid #ffab40;
+            padding: 12px 14px; border-radius: var(--radius-sm);
+            margin-bottom: 10px;
+        }
+        .alert-item:last-child { margin-bottom: 0; }
+        .alert-item .material-symbols-rounded { color: #ffab40; font-size: 26px; }
+        .alert-text h4 { font-size: 15px; font-weight: 600; }
+        .alert-text p { font-size: 13px; color: var(--text-sub); }
+
+        /* Hourly Scroll */
+        .hourly-list {
+            display: flex; gap: 12px; overflow-x: auto;
+            padding-bottom: 6px; scrollbar-width: none;
+        }
+        .hourly-list::-webkit-scrollbar { display: none; }
+        .hour-item {
+            min-width: 64px; text-align: center;
+            background: var(--bg-surface);
+            padding: 12px 8px; border-radius: 40px;
+            border: var(--border);
+            display: flex; flex-direction: column; align-items: center; gap: 6px;
+        }
+        .hour-time { font-size: 12px; color: var(--text-sub); }
+        .hour-temp { font-size: 16px; font-weight: 600; }
+        .hour-pop { font-size: 11px; color: #64b5f6; font-weight: 600; min-height: 14px; }
+
+        /* AI Wardrobe Chips */
+        .wardrobe-list {
+            display: flex; gap: 10px; overflow-x: auto; scrollbar-width: none;
+        }
+        .wardrobe-list::-webkit-scrollbar { display: none; }
+        .wardrobe-chip {
+            min-width: 130px; background: var(--bg-surface); border: var(--border);
+            border-radius: var(--radius-md); padding: 12px;
+            display: flex; flex-direction: column; gap: 6px;
+        }
+        .wardrobe-chip span { font-size: 24px; color: var(--primary); }
+        .wardrobe-chip h5 { font-size: 14px; font-weight: 600; }
+        .wardrobe-chip p { font-size: 11px; color: var(--text-sub); }
+
+        /* 7-Day Forecast */
+        .day-row {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+        .day-row:last-child { border-bottom: none; }
+        .day-name { width: 85px; font-weight: 500; font-size: 15px; }
+        .day-icon { display: flex; align-items: center; gap: 4px; font-size: 12px; color: #64b5f6; width: 65px; }
+        .day-bar-wrap { flex: 1; display: flex; align-items: center; gap: 8px; margin: 0 8px; }
+        .day-bar { flex: 1; height: 6px; background: rgba(255,255,255,0.14); border-radius: 6px; position: relative; overflow: hidden; }
+        .day-bar-fill { position: absolute; height: 100%; background: var(--primary); border-radius: 6px; }
+
+        /* Lifestyle & Bio-Health Grids */
+        .lifestyle-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .life-item {
+            background: var(--bg-surface); padding: 12px; border-radius: var(--radius-md);
+            display: flex; align-items: center; gap: 10px; border: var(--border);
+        }
+        .life-item div h5 { font-size: 14px; font-weight: 600; }
+        .life-item div p { font-size: 12px; color: var(--text-sub); }
+
+        /* Sun & Moon Tracker */
+        .sun-progress-wrap {
+            margin: 12px 0;
+            background: var(--bg-surface);
+            padding: 14px;
+            border-radius: var(--radius-md);
+            border: var(--border);
+        }
+        .sun-bar-bg {
+            height: 8px; width: 100%; background: rgba(255,255,255,0.12);
+            border-radius: 10px; position: relative; margin: 12px 0;
+        }
+        .sun-bar-fill {
+            height: 100%; border-radius: 10px;
+            background: linear-gradient(90deg, #f59e0b, #fde047);
+        }
+        .sun-dot {
+            width: 16px; height: 16px; border-radius: 50%; background: #fde047;
+            box-shadow: 0 0 12px #f59e0b;
+            position: absolute; top: 50%; transform: translate(-50%, -50%);
+        }
+        .sun-times { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-sub); }
+
+        /* Grid Widgets */
+        .widget-grid {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 16px;
+        }
+        .widget {
+            background: var(--bg-card); backdrop-filter: var(--backdrop); -webkit-backdrop-filter: var(--backdrop);
+            border: var(--border); border-radius: var(--radius-lg); padding: 16px; box-shadow: var(--shadow);
+        }
+        .widget-val { font-size: 24px; font-weight: 600; margin: 6px 0 4px; display: flex; align-items: center; gap: 8px; }
+        .widget-sub { font-size: 12px; color: var(--text-sub); line-height: 1.4; }
+
+        .compass-dial {
+            width: 28px; height: 28px; border-radius: 50%;
+            border: 1.5px solid var(--text-sub);
+            display: inline-flex; align-items: center; justify-content: center;
+        }
+        .compass-arrow { font-size: 18px; transition: transform 0.6s ease; }
+
+        /* Radar Map */
+        .radar-frame {
+            width: 100%; height: 240px; border-radius: var(--radius-md);
+            border: none; overflow: hidden;
+        }
+
+        /* Settings Page */
+        .settings-header { font-size: 26px; font-weight: 600; margin: 10px 0 20px; }
+        .setting-row {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 14px 0; border-bottom: 1px solid rgba(255,255,255,0.07);
+        }
+        .setting-row:last-child { border-bottom: none; }
+        .setting-label h4 { font-size: 15px; font-weight: 500; }
+        .setting-label p { font-size: 12px; color: var(--text-sub); }
+
+        .preview-chips {
+            display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px;
+        }
+        .preview-chip {
+            padding: 7px 13px; border-radius: 20px; font-size: 12px; font-weight: 600;
+            background: var(--bg-surface); color: var(--text-sub); border: var(--border); cursor: pointer;
+        }
+        .preview-chip.active { background: var(--primary); color: var(--on-primary); }
+
+        /* Segmented Buttons & Switches */
+        .seg-group {
+            display: flex; background: var(--bg-surface); border-radius: 30px; padding: 3px; border: var(--border);
+        }
+        .seg-btn {
+            background: none; border: none; color: var(--text-sub);
+            padding: 6px 12px; border-radius: 25px; font-size: 13px; font-weight: 600; cursor: pointer;
+            transition: all 0.25s ease;
+        }
+        .seg-btn.active { background: var(--primary); color: var(--on-primary); }
+
+        .switch { position: relative; display: inline-block; width: 48px; height: 26px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider {
+            position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+            background-color: rgba(255,255,255,0.2); transition: .3s; border-radius: 30px;
+        }
+        .slider:before {
+            position: absolute; content: ""; height: 20px; width: 20px; left: 3px; bottom: 3px;
+            background-color: white; transition: .3s; border-radius: 50%;
+        }
+        input:checked + .slider { background-color: var(--primary); }
+        input:checked + .slider:before { transform: translateX(22px); background-color: var(--on-primary); }
+
+        .btn-full {
+            width: 100%; padding: 14px; border-radius: var(--radius-md);
+            background: var(--primary); color: var(--on-primary);
+            border: none; font-weight: 600; font-size: 15px; cursor: pointer;
+            display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 10px;
+        }
+
+        /* ==========================================================================
+           BOTTOM NAVIGATION BAR: MATERIAL YOU vs. APPLE LIQUID GLASS SLIDER
+           ========================================================================== */
+        .bottom-nav {
+            position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%);
+            width: calc(100% - 36px); max-width: 420px;
+            background: var(--bg-card);
+            backdrop-filter: var(--backdrop);
+            -webkit-backdrop-filter: var(--backdrop);
+            border: var(--border);
+            border-radius: 40px;
+            display: flex; justify-content: space-around; align-items: center;
+            padding: 6px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+            z-index: 100;
+            touch-action: pan-y;
+        }
+
+        .nav-item {
+            position: relative;
+            z-index: 2;
+            flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px;
+            padding: 12px 0; border-radius: 34px; color: var(--text-sub);
+            font-weight: 600; font-size: 14px; cursor: pointer;
+            transition: color 0.25s ease, background-color 0.25s ease, transform 0.2s ease;
+        }
+
+        /* --- Material You Mode (Default): Standard non-sliding pill --- */
+        .nav-glider { display: none; }
+        body:not(.theme-glass) .nav-item.active {
+            background: var(--primary);
+            color: var(--on-primary);
+        }
+
+        /* --- Apple Liquid Glass Mode ONLY: Sliding & Morphing Glass Bubble --- */
+        body.theme-glass .bottom-nav {
+            background: rgba(18, 22, 32, 0.42);
+            backdrop-filter: blur(30px) saturate(200%);
+            -webkit-backdrop-filter: blur(30px) saturate(200%);
+            border: 1px solid rgba(255, 255, 255, 0.24);
+            box-shadow: 
+                0 16px 40px rgba(0, 0, 0, 0.5),
+                inset 0 1px 0.5px rgba(255, 255, 255, 0.35),
+                inset 0 -1px 1px rgba(255, 255, 255, 0.1);
+            padding: 6px;
+        }
+
+        body.theme-glass .nav-item.active {
+            background: transparent;
+            color: #ffffff;
+            text-shadow: 0 1px 8px rgba(255, 255, 255, 0.35);
+        }
+
+        body.theme-glass .nav-item.active .material-symbols-rounded {
+            transform: scale(1.1);
+            transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        body.theme-glass .nav-glider {
+            display: block;
+            position: absolute;
+            top: 6px; bottom: 6px; left: 6px;
+            width: calc(50% - 6px);
+            border-radius: 34px;
+            z-index: 1;
+            pointer-events: none;
+            background: linear-gradient(
+                135deg,
+                rgba(255, 255, 255, 0.34) 0%,
+                rgba(255, 255, 255, 0.12) 50%,
+                rgba(255, 255, 255, 0.26) 100%
+            );
+            backdrop-filter: blur(18px) brightness(1.22) saturate(210%);
+            -webkit-backdrop-filter: blur(18px) brightness(1.22) saturate(210%);
+            border: 1px solid rgba(255, 255, 255, 0.42);
+            box-shadow:
+                inset 0 1.5px 1.5px rgba(255, 255, 255, 0.85),
+                inset 0 -1.5px 2px rgba(255, 255, 255, 0.25),
+                0 6px 20px rgba(0, 0, 0, 0.32),
+                0 0 18px rgba(255, 255, 255, 0.14);
+            transform: translateX(0%) scale(1, 1);
+            transition: transform 0.52s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.3s ease;
+            overflow: hidden;
+        }
+
+        body.theme-glass .nav-glider::after {
+            content: "";
+            position: absolute;
+            top: -50%; left: -60%;
+            width: 50%; height: 200%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.45), transparent);
+            transform: rotate(25deg);
+            transition: left 0.55s ease;
+        }
+
+        body.theme-glass .bottom-nav.pos-settings .nav-glider {
+            transform: translateX(100%) scale(1, 1);
+        }
+        body.theme-glass .bottom-nav.pos-settings .nav-glider::after {
+            left: 130%;
+        }
+
+        body.theme-glass .nav-glider.liquid-morph-right {
+            animation: morphRight 0.52s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+        body.theme-glass .nav-glider.liquid-morph-left {
+            animation: morphLeft 0.52s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+
+        @keyframes morphRight {
+            0%   { transform: translateX(0%) scale(1, 1); }
+            40%  { transform: translateX(52%) scale(1.16, 0.90); }
+            80%  { transform: translateX(103%) scale(0.97, 1.03); }
+            100% { transform: translateX(100%) scale(1, 1); }
+        }
+
+        @keyframes morphLeft {
+            0%   { transform: translateX(100%) scale(1, 1); }
+            40%  { transform: translateX(48%) scale(1.16, 0.90); }
+            80%  { transform: translateX(-3%) scale(0.97, 1.03); }
+            100% { transform: translateX(0%) scale(1, 1); }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Dynamic Sky Gradient & Real-Time Weather Particle Canvas -->
+    <div class="weather-sky" id="weather-sky"></div>
+    <canvas id="weather-canvas"></canvas>
+
+    <div class="app-container">
+        
+        <!-- ==================== WEATHER PAGE ==================== -->
+        <div id="page-weather" class="page active">
+            <div class="top-bar">
+                <div class="search-box">
+                    <span class="material-symbols-rounded">search</span>
+                    <input type="text" id="city-input" placeholder="Search city (e.g. Paris, New York)..." onkeypress="if(event.key==='Enter') searchCity()">
+                </div>
+                <button class="icon-btn" onclick="saveCurrentCity()" title="Pin City">
+                    <span class="material-symbols-rounded">bookmark_add</span>
+                </button>
+                <button class="icon-btn" onclick="getDeviceLocation()" title="Use GPS">
+                    <span class="material-symbols-rounded">my_location</span>
+                </button>
+            </div>
+
+            <!-- Saved Cities Quick Bar -->
+            <div class="saved-cities" id="saved-cities-bar"></div>
+
+            <!-- Hero Current Weather -->
+            <div class="hero">
+                <div class="city-name">
+                    <span class="material-symbols-rounded" style="font-size:22px;">location_on</span>
+                    <span id="ui-city">Locating...</span>
+                </div>
+                <div class="temp-huge" id="ui-temp">--°</div>
+                <div class="condition-pill">
+                    <span class="material-symbols-rounded" id="ui-icon">partly_cloudy_day</span>
+                    <span id="ui-cond">Loading</span>
+                </div>
+                <div class="hi-lo" id="ui-hilo">Feels like --° • H: --° L: --°</div>
+                <div class="yesterday-badge" id="ui-yesterday">
+                    <span class="material-symbols-rounded" style="font-size:15px;">history</span>
+                    <span>Comparing with yesterday...</span>
+                </div>
+            </div>
+
+            <!-- Smart Alerts Container -->
+            <div class="card" id="alerts-card" style="display:none;">
+                <div class="card-title">
+                    <div class="card-title-left"><span class="material-symbols-rounded">notifications_active</span> Smart Weather Alerts</div>
+                </div>
+                <div id="alerts-list"></div>
+            </div>
+
+            <!-- AI Wardrobe Assistant (What to Wear) -->
+            <div class="card">
+                <div class="card-title">
+                    <div class="card-title-left"><span class="material-symbols-rounded">checkroom</span> AI Wardrobe & Attire Guide</div>
+                </div>
+                <div class="wardrobe-list" id="wardrobe-list"></div>
+            </div>
+
+            <!-- Hourly Forecast -->
+            <div class="card">
+                <div class="card-title">
+                    <div class="card-title-left"><span class="material-symbols-rounded">schedule</span> 24-Hour Forecast</div>
+                </div>
+                <div class="hourly-list" id="hourly-list"></div>
+            </div>
+
+            <!-- 7-Day Forecast -->
+            <div class="card">
+                <div class="card-title">
+                    <div class="card-title-left"><span class="material-symbols-rounded">calendar_month</span> 7-Day Outlook</div>
+                </div>
+                <div id="daily-list"></div>
+            </div>
+
+            <!-- Health & Bio-Weather Triggers -->
+            <div class="card">
+                <div class="card-title">
+                    <div class="card-title-left"><span class="material-symbols-rounded">monitor_heart</span> Bio-Weather & Health Risks</div>
+                </div>
+                <div class="lifestyle-grid" id="health-list"></div>
+            </div>
+
+            <!-- Activity & Lifestyle Hub -->
+            <div class="card">
+                <div class="card-title">
+                    <div class="card-title-left"><span class="material-symbols-rounded">directions_run</span> Outdoor & Lifestyle Index</div>
+                </div>
+                <div class="lifestyle-grid" id="lifestyle-list"></div>
+            </div>
+
+            <!-- Sun, Golden Hour & Moon Tracker -->
+            <div class="card">
+                <div class="card-title">
+                    <div class="card-title-left"><span class="material-symbols-rounded">routine</span> Sun Arc, Golden Hour & Moon</div>
+                    <span id="ui-moon-phase" style="font-size:12px;">🌙 --</span>
+                </div>
+                <div class="sun-progress-wrap">
+                    <div style="display:flex; justify-content:space-between; font-size:13px; font-weight:600;">
+                        <span id="ui-golden-hour">📸 Golden Hour: --:--</span>
+                        <span id="ui-daylight-left">--</span>
+                    </div>
+                    <div class="sun-bar-bg">
+                        <div class="sun-bar-fill" id="sun-bar-fill" style="width:50%;"></div>
+                        <div class="sun-dot" id="sun-dot" style="left:50%;"></div>
+                    </div>
+                    <div class="sun-times">
+                        <span id="ui-sunrise">Sunrise --:--</span>
+                        <span id="ui-sunset">Sunset --:--</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Detailed Metrics Grid -->
+            <div class="widget-grid">
+                <div class="widget">
+                    <div class="card-title"><div class="card-title-left"><span class="material-symbols-rounded">airwave</span> Air & Pollen</div></div>
+                    <div class="widget-val" id="ui-aqi">--</div>
+                    <div class="widget-sub" id="ui-pollen">Pollen: --</div>
+                </div>
+                <div class="widget">
+                    <div class="card-title"><div class="card-title-left"><span class="material-symbols-rounded">wb_sunny</span> UV & Visibility</div></div>
+                    <div class="widget-val" id="ui-uv">--</div>
+                    <div class="widget-sub" id="ui-uv-desc">Visibility: --</div>
+                </div>
+                <div class="widget">
+                    <div class="card-title"><div class="card-title-left"><span class="material-symbols-rounded">explore</span> Wind Compass</div></div>
+                    <div class="widget-val">
+                        <span id="ui-wind">--</span>
+                        <span class="compass-dial"><span class="material-symbols-rounded compass-arrow" id="ui-compass">north</span></span>
+                    </div>
+                    <div class="widget-sub" id="ui-gusts">Gusts: --</div>
+                </div>
+                <div class="widget">
+                    <div class="card-title"><div class="card-title-left"><span class="material-symbols-rounded">speed</span> Pressure & Dew</div></div>
+                    <div class="widget-val" id="ui-pressure">--</div>
+                    <div class="widget-sub" id="ui-humidity">Humidity: --%</div>
+                </div>
+            </div>
+
+            <!-- Live Precipitation Radar -->
+            <div class="card">
+                <div class="card-title">
+                    <div class="card-title-left"><span class="material-symbols-rounded">radar</span> Live Satellite & Rain Radar</div>
+                </div>
+                <iframe id="radar-iframe" class="radar-frame" src=""></iframe>
+            </div>
+        </div>
+
+        <!-- ==================== SETTINGS PAGE ==================== -->
+        <div id="page-settings" class="page">
+            <div class="settings-header">App Settings</div>
+
+            <!-- UI Design Engine & Weather Animation Tester -->
+            <div class="card">
+                <div class="card-title">
+                    <div class="card-title-left"><span class="material-symbols-rounded">palette</span> Appearance & Weather Engine</div>
+                </div>
+                <div class="setting-row">
+                    <div class="setting-label">
+                        <h4>UI Theme Style</h4>
+                        <p>Liquid Glass enables the sliding glass tab bar</p>
+                    </div>
+                    <div class="seg-group">
+                        <button class="seg-btn" id="theme-material" onclick="updateSetting('theme', 'material')">Material You</button>
+                        <button class="seg-btn" id="theme-glass" onclick="updateSetting('theme', 'glass')">Liquid Glass</button>
+                    </div>
+                </div>
+
+                <div class="setting-row" style="flex-direction:column; align-items:flex-start; gap:8px;">
+                    <div class="setting-label">
+                        <h4>Animated Weather Background</h4>
+                        <p>Automatically syncs with current weather, or preview any atmosphere live:</p>
+                    </div>
+                    <div class="preview-chips" id="fx-preview-chips">
+                        <span class="preview-chip active" onclick="setWeatherOverride('auto')">Auto (Live Weather)</span>
+                        <span class="preview-chip" onclick="setWeatherOverride('rain')">🌧️ Rainfall</span>
+                        <span class="preview-chip" onclick="setWeatherOverride('storm')">⛈️ Thunderstorm</span>
+                        <span class="preview-chip" onclick="setWeatherOverride('snow')">❄️ Snowfall</span>
+                        <span class="preview-chip" onclick="setWeatherOverride('clear_day')">☀️ Sunny Day</span>
+                        <span class="preview-chip" onclick="setWeatherOverride('clear_night')">🌌 Starry Night</span>
+                        <span class="preview-chip" onclick="setWeatherOverride('fog')">🌫️ Mist & Clouds</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Custom Units -->
+            <div class="card">
+                <div class="card-title">
+                    <div class="card-title-left"><span class="material-symbols-rounded">straighten</span> Measurement Units</div>
+                </div>
+                <div class="setting-row">
+                    <div class="setting-label"><h4>Temperature</h4><p>Celsius or Fahrenheit</p></div>
+                    <div class="seg-group">
+                        <button class="seg-btn" id="unit-c" onclick="updateSetting('temp', 'C')">°C</button>
+                        <button class="seg-btn" id="unit-f" onclick="updateSetting('temp', 'F')">°F</button>
+                    </div>
+                </div>
+                <div class="setting-row">
+                    <div class="setting-label"><h4>Wind Speed</h4><p>Kilometers or Miles per hour</p></div>
+                    <div class="seg-group">
+                        <button class="seg-btn" id="unit-kmh" onclick="updateSetting('wind', 'kmh')">km/h</button>
+                        <button class="seg-btn" id="unit-mph" onclick="updateSetting('wind', 'mph')">mph</button>
+                    </div>
+                </div>
+                <div class="setting-row">
+                    <div class="setting-label"><h4>Barometric Pressure</h4><p>Hectopascals or Inches of Mercury</p></div>
+                    <div class="seg-group">
+                        <button class="seg-btn" id="unit-hpa" onclick="updateSetting('pressure', 'hpa')">hPa</button>
+                        <button class="seg-btn" id="unit-inhg" onclick="updateSetting('pressure', 'inhg')">inHg</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Advanced Notification Alerts -->
+            <div class="card">
+                <div class="card-title">
+                    <div class="card-title-left"><span class="material-symbols-rounded">notifications</span> Smart Alert Triggers</div>
+                </div>
+                
+                <div class="setting-row">
+                    <div class="setting-label"><h4>Umbrella Reminder</h4><p>Alert when rain probability exceeds 40%</p></div>
+                    <label class="switch"><input type="checkbox" id="al-umbrella" onchange="toggleAlert('umbrella')"><span class="slider"></span></label>
+                </div>
+                <div class="setting-row">
+                    <div class="setting-label"><h4>Heavy Snow Warning</h4><p>Alert when snowfall is forecasted</p></div>
+                    <label class="switch"><input type="checkbox" id="al-snow" onchange="toggleAlert('snow')"><span class="slider"></span></label>
+                </div>
+                <div class="setting-row">
+                    <div class="setting-label"><h4>High Pollen Alert</h4><p>Alert for elevated grass, birch, or ragweed pollen</p></div>
+                    <label class="switch"><input type="checkbox" id="al-pollen" onchange="toggleAlert('pollen')"><span class="slider"></span></label>
+                </div>
+                <div class="setting-row">
+                    <div class="setting-label"><h4>Low Temperature Freeze</h4><p>Alert when temperature drops below 4°C (39°F)</p></div>
+                    <label class="switch"><input type="checkbox" id="al-cold" onchange="toggleAlert('cold')"><span class="slider"></span></label>
+                </div>
+                <div class="setting-row">
+                    <div class="setting-label"><h4>Extreme UV Protection</h4><p>Alert when UV index reaches 6 or higher</p></div>
+                    <label class="switch"><input type="checkbox" id="al-uv" onchange="toggleAlert('uv')"><span class="slider"></span></label>
+                </div>
+
+                <button class="btn-full" onclick="sendTestNotification()">
+                    <span class="material-symbols-rounded">send_to_mobile</span> Enable & Test Push Alert
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bottom Navigation with Sliding Liquid Glass Glider -->
+    <nav class="bottom-nav" id="bottom-nav">
+        <div class="nav-glider" id="nav-glider"></div>
+        <div class="nav-item active" id="nav-weather" onclick="switchPage('weather')">
+            <span class="material-symbols-rounded">cloud</span> Weather
+        </div>
+        <div class="nav-item" id="nav-settings" onclick="switchPage('settings')">
+            <span class="material-symbols-rounded">tune</span> Settings
+        </div>
+    </nav>
+
+    <script>
+        // =========================================================================
+        // 1. REAL-TIME 60FPS HTML5 CANVAS WEATHER BACKGROUND ENGINE
+        // =========================================================================
+        const WeatherFX = {
+            canvas: null,
+            ctx: null,
+            width: 0,
+            height: 0,
+            mode: 'rain', // 'rain', 'storm', 'snow', 'clear_day', 'clear_night', 'fog'
+            override: 'auto',
+            particles: [],
+            splashes: [],
+            clouds: [],
+            lightningTimer: 0,
+            lightningAlpha: 0,
+            sunAngle: 0,
+
+            init() {
+                this.canvas = document.getElementById('weather-canvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.resize();
+                window.addEventListener('resize', () => this.resize());
+                this.buildScene(this.mode);
+                this.animate();
+            },
+
+            resize() {
+                this.width = this.canvas.width = window.innerWidth;
+                this.height = this.canvas.height = window.innerHeight;
+                this.buildScene(this.mode);
+            },
+
+            setAtmosphere(wmoCode, isDay) {
+                let targetMode = 'clear_day';
+                if ([95, 96, 99].includes(wmoCode)) targetMode = 'storm';
+                else if ([51, 53, 55, 61, 63, 65, 80, 81, 82].includes(wmoCode)) targetMode = 'rain';
+                else if ([71, 73, 75, 77, 85, 86].includes(wmoCode)) targetMode = 'snow';
+                else if ([2, 3, 45, 48].includes(wmoCode)) targetMode = 'fog';
+                else targetMode = isDay ? 'clear_day' : 'clear_night';
+
+                if (this.override !== 'auto') targetMode = this.override;
+                this.mode = targetMode;
+                this.updateSkyGradient(targetMode);
+                this.buildScene(targetMode);
+            },
+
+            updateSkyGradient(mode) {
+                const root = document.documentElement;
+                const palettes = {
+                    rain:        { top: '#0c192c', bottom: '#1e334a', hue: 215 },
+                    storm:       { top: '#090d16', bottom: '#1c1f33', hue: 250 },
+                    snow:        { top: '#1a2a3a', bottom: '#3b526b', hue: 205 },
+                    clear_day:   { top: '#0d47a1', bottom: '#1976d2', hue: 210 },
+                    clear_night: { top: '#050711', bottom: '#0f172a', hue: 230 },
+                    fog:         { top: '#1e293b', bottom: '#334155', hue: 200 }
+                };
+                const p = palettes[mode] || palettes.clear_day;
+                root.style.setProperty('--sky-top', p.top);
+                root.style.setProperty('--sky-bottom', p.bottom);
+                applyMaterialYouPalette(p.hue);
+            },
+
+            buildScene(mode) {
+                this.particles = [];
+                this.splashes = [];
+                this.clouds = [];
+
+                if (mode === 'rain' || mode === 'storm') {
+                    const count = mode === 'storm' ? 180 : 125;
+                    for (let i = 0; i < count; i++) {
+                        this.particles.push({
+                            x: Math.random() * this.width,
+                            y: Math.random() * this.height,
+                            len: 18 + Math.random() * 22,
+                            speed: 14 + Math.random() * 10,
+                            wind: mode === 'storm' ? 3.5 : 1.2,
+                            alpha: 0.25 + Math.random() * 0.45
+                        });
+                    }
+                } else if (mode === 'snow') {
+                    for (let i = 0; i < 110; i++) {
+                        this.particles.push({
+                            x: Math.random() * this.width,
+                            y: Math.random() * this.height,
+                            r: 1.5 + Math.random() * 4,
+                            speedY: 0.8 + Math.random() * 1.8,
+                            sway: Math.random() * Math.PI * 2,
+                            swaySpeed: 0.01 + Math.random() * 0.02,
+                            alpha: 0.35 + Math.random() * 0.55
+                        });
+                    }
+                } else if (mode === 'clear_night') {
+                    for (let i = 0; i < 120; i++) {
+                        this.particles.push({
+                            x: Math.random() * this.width,
+                            y: Math.random() * (this.height * 0.75),
+                            r: 0.6 + Math.random() * 1.6,
+                            twinkle: Math.random() * Math.PI * 2,
+                            speed: 0.02 + Math.random() * 0.04
+                        });
+                    }
+                } else if (mode === 'clear_day') {
+                    for (let i = 0; i < 40; i++) {
+                        this.particles.push({
+                            x: Math.random() * this.width,
+                            y: Math.random() * this.height,
+                            r: 1.5 + Math.random() * 3,
+                            vx: (Math.random() - 0.5) * 0.4,
+                            vy: -0.2 - Math.random() * 0.4,
+                            alpha: 0.15 + Math.random() * 0.3
+                        });
+                    }
+                }
+
+                // Ambient Clouds / Mist layers for Fog, Rain, Storm
+                if (['fog', 'rain', 'storm'].includes(mode)) {
+                    const cloudCount = mode === 'fog' ? 14 : 6;
+                    for (let i = 0; i < cloudCount; i++) {
+                        this.clouds.push({
+                            x: Math.random() * this.width,
+                            y: mode === 'fog' ? Math.random() * this.height : Math.random() * (this.height * 0.35),
+                            r: 140 + Math.random() * 180,
+                            speed: 0.15 + Math.random() * 0.35,
+                            alpha: mode === 'fog' ? 0.09 : 0.05
+                        });
+                    }
+                }
+            },
+
+            animate() {
+                const ctx = this.ctx;
+                ctx.clearRect(0, 0, this.width, this.height);
+
+                // 1. Render Drifting Clouds / Mist
+                for (let c of this.clouds) {
+                    c.x += c.speed;
+                    if (c.x - c.r > this.width) c.x = -c.r;
+                    const grad = ctx.createRadialGradient(c.x, c.y, 10, c.x, c.y, c.r);
+                    grad.addColorStop(0, `rgba(220, 235, 255, ${c.alpha})`);
+                    grad.addColorStop(1, 'rgba(220, 235, 255, 0)');
+                    ctx.fillStyle = grad;
+                    ctx.beginPath();
+                    ctx.arc(c.x, c.y, c.r, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+
+                // 2. Render Mode-Specific Weather FX
+                if (this.mode === 'rain' || this.mode === 'storm') {
+                    ctx.lineWidth = 1.4;
+                    ctx.lineCap = 'round';
+                    for (let p of this.particles) {
+                        ctx.strokeStyle = `rgba(185, 220, 255, ${p.alpha})`;
+                        ctx.beginPath();
+                        ctx.moveTo(p.x, p.y);
+                        ctx.lineTo(p.x + p.wind * 2.5, p.y + p.len);
+                        ctx.stroke();
+
+                        p.x += p.wind;
+                        p.y += p.speed;
+
+                        if (p.y > this.height - 15) {
+                            if (Math.random() < 0.35 && this.splashes.length < 45) {
+                                this.splashes.push({ x: p.x, y: this.height - 5 - Math.random() * 25, r: 1, maxR: 6 + Math.random() * 8, alpha: 0.55 });
+                            }
+                            p.y = -25;
+                            p.x = Math.random() * (this.width + 100) - 50;
+                        }
+                    }
+
+                    // Raindrop Splashes
+                    for (let i = this.splashes.length - 1; i >= 0; i--) {
+                        const s = this.splashes[i];
+                        ctx.strokeStyle = `rgba(200, 230, 255, ${s.alpha})`;
+                        ctx.lineWidth = 1;
+                        ctx.beginPath();
+                        ctx.ellipse(s.x, s.y, s.r * 1.8, s.r * 0.5, 0, 0, Math.PI * 2);
+                        ctx.stroke();
+                        s.r += 0.45;
+                        s.alpha -= 0.03;
+                        if (s.alpha <= 0) this.splashes.splice(i, 1);
+                    }
+
+                    // Thunderstorm Sheet Lightning
+                    if (this.mode === 'storm') {
+                        this.lightningTimer++;
+                        if (this.lightningTimer > 140 && Math.random() < 0.025) {
+                            this.lightningAlpha = 0.65;
+                            this.lightningTimer = 0;
+                        }
+                        if (this.lightningAlpha > 0) {
+                            ctx.fillStyle = `rgba(230, 240, 255, ${this.lightningAlpha})`;
+                            ctx.fillRect(0, 0, this.width, this.height);
+                            this.lightningAlpha -= 0.06;
+                        }
+                    }
+                } 
+                else if (this.mode === 'snow') {
+                    for (let p of this.particles) {
+                        p.sway += p.swaySpeed;
+                        p.x += Math.sin(p.sway) * 0.7;
+                        p.y += p.speedY;
+                        if (p.y > this.height + 10) { p.y = -10; p.x = Math.random() * this.width; }
+
+                        ctx.fillStyle = `rgba(255, 255, 255, ${p.alpha})`;
+                        ctx.beginPath();
+                        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                } 
+                else if (this.mode === 'clear_day') {
+                    // Rotating Sunbeams in Top-Right
+                    this.sunAngle += 0.002;
+                    const sunX = this.width * 0.85;
+                    const sunY = this.height * 0.08;
+                    const sunGlow = ctx.createRadialGradient(sunX, sunY, 10, sunX, sunY, 340);
+                    sunGlow.addColorStop(0, 'rgba(255, 245, 180, 0.45)');
+                    sunGlow.addColorStop(0.5, 'rgba(255, 210, 120, 0.14)');
+                    sunGlow.addColorStop(1, 'rgba(255, 210, 120, 0)');
+                    ctx.fillStyle = sunGlow;
+                    ctx.fillRect(0, 0, this.width, this.height);
+
+                    for (let p of this.particles) {
+                        p.x += p.vx; p.y += p.vy;
+                        if (p.y < 0) p.y = this.height;
+                        ctx.fillStyle = `rgba(255, 250, 210, ${p.alpha})`;
+                        ctx.beginPath();
+                        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                } 
+                else if (this.mode === 'clear_night') {
+                    for (let p of this.particles) {
+                        p.twinkle += p.speed;
+                        const alpha = 0.25 + Math.abs(Math.sin(p.twinkle)) * 0.75;
+                        ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+                        ctx.beginPath();
+                        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                }
+
+                requestAnimationFrame(() => this.animate());
+            }
+        };
+
+        // =========================================================================
+        // 2. APP STATE & CONFIGURATION
+        // =========================================================================
+        let config = JSON.parse(localStorage.getItem('aether_pro_config')) || {
+            theme: 'glass',
+            temp: 'C',
+            wind: 'kmh',
+            pressure: 'hpa',
+            lat: 51.5074,
+            lon: -0.1278,
+            city: 'London',
+            savedCities: [
+                { name: 'London', lat: 51.5074, lon: -0.1278 },
+                { name: 'Tokyo', lat: 35.6762, lon: 139.6503 },
+                { name: 'New York', lat: 40.7128, lon: -74.0060 }
+            ],
+            alerts: { umbrella: true, snow: true, pollen: true, cold: true, uv: true }
+        };
+
+        let currentPage = 'weather';
+        let rawWeatherData = null;
+        let rawAirData = null;
+
+        const wmoCodes = {
+            0: { label: 'Clear Sky', icon: 'clear_day' },
+            1: { label: 'Mainly Clear', icon: 'partly_cloudy_day' },
+            2: { label: 'Partly Cloudy', icon: 'partly_cloudy_day' },
+            3: { label: 'Overcast', icon: 'cloud' },
+            45: { label: 'Foggy', icon: 'foggy' },
+            48: { label: 'Rime Fog', icon: 'foggy' },
+            51: { label: 'Light Drizzle', icon: 'rainy_light' },
+            53: { label: 'Drizzle', icon: 'rainy_light' },
+            55: { label: 'Dense Drizzle', icon: 'rainy' },
+            61: { label: 'Rain', icon: 'rainy' },
+            63: { label: 'Heavy Rain', icon: 'rainy_heavy' },
+            65: { label: 'Downpour', icon: 'rainy_heavy' },
+            71: { label: 'Snowfall', icon: 'weather_snowy' },
+            73: { label: 'Moderate Snow', icon: 'weather_snowy' },
+            75: { label: 'Heavy Snow', icon: 'ac_unit' },
+            80: { label: 'Rain Showers', icon: 'rainy' },
+            95: { label: 'Thunderstorm', icon: 'thunderstorm' }
+        };
+
+        // --- Initialization ---
+        window.onload = () => {
+            WeatherFX.init();
+            applySettingsUI();
+            renderSavedCities();
+            initLiquidTabSwipe();
+            fetchAllWeather(config.lat, config.lon, config.city);
+            setupPWA();
+        };
+
+        function setWeatherOverride(mode) {
+            WeatherFX.override = mode;
+            document.querySelectorAll('#fx-preview-chips .preview-chip').forEach(c => c.classList.remove('active'));
+            event.target.classList.add('active');
+            if (rawWeatherData) {
+                WeatherFX.setAtmosphere(rawWeatherData.current.weather_code, rawWeatherData.current.is_day);
+            }
+        }
+
+        // --- Page Navigation & Liquid Glass Sliding Animation ---
+        function switchPage(targetPage) {
+            if (targetPage === currentPage) return;
+
+            const bottomNav = document.getElementById('bottom-nav');
+            const glider = document.getElementById('nav-glider');
+            const targetEl = document.getElementById(`page-${targetPage}`);
+
+            if (config.theme === 'glass') {
+                glider.classList.remove('liquid-morph-right', 'liquid-morph-left');
+                void glider.offsetWidth;
+                if (targetPage === 'settings') {
+                    glider.classList.add('liquid-morph-right');
+                    bottomNav.classList.add('pos-settings');
+                } else {
+                    glider.classList.add('liquid-morph-left');
+                    bottomNav.classList.remove('pos-settings');
+                }
+            } else {
+                bottomNav.classList.toggle('pos-settings', targetPage === 'settings');
+            }
+
+            document.querySelectorAll('.page').forEach(p => {
+                p.classList.remove('active', 'slide-from-right', 'slide-from-left');
+            });
+            targetEl.classList.add('active');
+
+            if (config.theme === 'glass') {
+                targetEl.classList.add(targetPage === 'settings' ? 'slide-from-right' : 'slide-from-left');
+            }
+
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            document.getElementById(`nav-${targetPage}`).classList.add('active');
+
+            currentPage = targetPage;
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        // --- Interactive Touch-Slide Gesture for Liquid Glass Bottom Bar ---
+        function initLiquidTabSwipe() {
+            const bottomNav = document.getElementById('bottom-nav');
+            const glider = document.getElementById('nav-glider');
+            let isDragging = false;
+            let startX = 0;
+
+            bottomNav.addEventListener('touchstart', (e) => {
+                if (config.theme !== 'glass') return;
+                isDragging = true;
+                startX = e.touches[0].clientX;
+                glider.style.transition = 'none';
+            }, { passive: true });
+
+            bottomNav.addEventListener('touchmove', (e) => {
+                if (!isDragging || config.theme !== 'glass') return;
+                const rect = bottomNav.getBoundingClientRect();
+                const touchX = e.touches[0].clientX - rect.left;
+                const halfWidth = rect.width / 2;
+
+                let pct = ((touchX - halfWidth / 2) / halfWidth) * 100;
+                pct = Math.max(0, Math.min(100, pct));
+                glider.style.transform = `translateX(${pct}%) scale(1.06, 0.95)`;
+            }, { passive: true });
+
+            bottomNav.addEventListener('touchend', (e) => {
+                if (!isDragging || config.theme !== 'glass') return;
+                isDragging = false;
+                glider.style.transition = '';
+                glider.style.transform = '';
+
+                const endX = e.changedTouches[0].clientX;
+                const rect = bottomNav.getBoundingClientRect();
+                const deltaX = endX - startX;
+
+                if (Math.abs(deltaX) > 25) {
+                    if (deltaX > 0) switchPage('settings');
+                    else switchPage('weather');
+                } else {
+                    const droppedOnRight = (endX - rect.left) > (rect.width / 2);
+                    switchPage(droppedOnRight ? 'settings' : 'weather');
+                }
+            });
+        }
+
+        // --- Saved Cities Management ---
+        function renderSavedCities() {
+            const bar = document.getElementById('saved-cities-bar');
+            bar.innerHTML = config.savedCities.map(c => `
+                <div class="city-chip ${c.name === config.city ? 'active' : ''}" onclick="fetchAllWeather(${c.lat}, ${c.lon}, '${c.name.replace(/'/g, "\\'")}')">
+                    <span>${c.name}</span>
+                </div>
+            `).join('');
+        }
+
+        function saveCurrentCity() {
+            if (!config.savedCities.some(c => c.name.toLowerCase() === config.city.toLowerCase())) {
+                config.savedCities.push({ name: config.city, lat: config.lat, lon: config.lon });
+                saveConfig();
+                renderSavedCities();
+            }
+        }
+
+        // --- Settings & Theme Engine ---
+        function updateSetting(key, val) {
+            config[key] = val;
+            saveConfig();
+            applySettingsUI();
+            if (rawWeatherData) renderWeather();
+        }
+
+        function toggleAlert(key) {
+            config.alerts[key] = document.getElementById(`al-${key}`).checked;
+            saveConfig();
+            if (rawWeatherData) renderWeather();
+        }
+
+        function saveConfig() {
+            localStorage.setItem('aether_pro_config', JSON.stringify(config));
+        }
+
+        function applySettingsUI() {
+            document.body.classList.toggle('theme-glass', config.theme === 'glass');
+            document.getElementById('theme-material').classList.toggle('active', config.theme === 'material');
+            document.getElementById('theme-glass').classList.toggle('active', config.theme === 'glass');
+
+            const bottomNav = document.getElementById('bottom-nav');
+            bottomNav.classList.toggle('pos-settings', currentPage === 'settings');
+
+            document.getElementById('unit-c').classList.toggle('active', config.temp === 'C');
+            document.getElementById('unit-f').classList.toggle('active', config.temp === 'F');
+            document.getElementById('unit-kmh').classList.toggle('active', config.wind === 'kmh');
+            document.getElementById('unit-mph').classList.toggle('active', config.wind === 'mph');
+            document.getElementById('unit-hpa').classList.toggle('active', config.pressure === 'hpa');
+            document.getElementById('unit-inhg').classList.toggle('active', config.pressure === 'inhg');
+
+            for (let k in config.alerts) {
+                document.getElementById(`al-${k}`).checked = config.alerts[k];
+            }
+        }
+
+        function applyMaterialYouPalette(hue) {
+            if (config.theme === 'glass') return;
+            const root = document.documentElement;
+            root.style.setProperty('--bg-surface', `hsla(${hue}, 25%, 14%, 0.78)`);
+            root.style.setProperty('--bg-card', `hsla(${hue}, 24%, 18%, 0.82)`);
+            root.style.setProperty('--primary', `hsl(${hue}, 85%, 78%)`);
+            root.style.setProperty('--on-primary', `hsl(${hue}, 80%, 16%)`);
+        }
+
+        // --- Unit Converters ---
+        function fTemp(c) { return config.temp === 'F' ? Math.round((c * 9/5) + 32) : Math.round(c); }
+        function fWind(kmh) { return config.wind === 'mph' ? Math.round(kmh * 0.621371) + ' mph' : Math.round(kmh) + ' km/h'; }
+        function fPress(hpa) { return config.pressure === 'inhg' ? (hpa * 0.02953).toFixed(2) + ' inHg' : Math.round(hpa) + ' hPa'; }
+
+        // --- Geolocation & Search ---
+        function getDeviceLocation() {
+            if (!navigator.geolocation) return alert("Geolocation not supported");
+            document.getElementById('ui-city').innerText = "Locating...";
+            navigator.geolocation.getCurrentPosition(async pos => {
+                const { latitude, longitude } = pos.coords;
+                try {
+                    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`);
+                    const data = await res.json();
+                    const city = data.address.city || data.address.town || data.address.village || "Current Location";
+                    fetchAllWeather(latitude, longitude, city);
+                } catch {
+                    fetchAllWeather(latitude, longitude, "My Location");
+                }
+            }, () => alert("Location access denied. Please use the search bar."));
+        }
+
+        async function searchCity() {
+            const q = document.getElementById('city-input').value.trim();
+            if (!q) return;
+            const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=1`);
+            const data = await res.json();
+            if (data.results && data.results.length > 0) {
+                const loc = data.results[0];
+                document.getElementById('city-input').value = '';
+                fetchAllWeather(loc.latitude, loc.longitude, loc.name);
+            } else {
+                alert("City not found!");
+            }
+        }
+
+        // --- Fetch Weather (with past_days=1 for Yesterday Comparison) & Air Quality ---
+        async function fetchAllWeather(lat, lon, cityName) {
+            config.lat = lat; config.lon = lon; config.city = cityName;
+            saveConfig();
+            renderSavedCities();
+
+            const wUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&past_days=1&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,weather_code,surface_pressure,wind_speed_10m,wind_direction_10m,wind_gusts_10m,uv_index,visibility&hourly=temperature_2m,precipitation_probability,weather_code&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,uv_index_max,precipitation_probability_max,snowfall_sum&timezone=auto`;
+            const aUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&current=us_aqi,alder_pollen,birch_pollen,grass_pollen,ragweed_pollen&timezone=auto`;
+
+            const [wRes, aRes] = await Promise.all([fetch(wUrl), fetch(aUrl)]);
+            rawWeatherData = await wRes.json();
+            rawAirData = await aRes.json();
+
+            document.getElementById('radar-iframe').src = `https://www.rainviewer.com/map.html?loc=${lat},${lon},7&oFa=0&oC=0&oU=0&oCS=1&oF=0&oAP=1&c=3&o=83&lm=1&layer=radar&sm=1&sn=1`;
+            renderWeather();
+        }
+
+        // --- Render Complete Weather UI ---
+        function renderWeather() {
+            const cur = rawWeatherData.current;
+            const daily = rawWeatherData.daily;
+            const hourly = rawWeatherData.hourly;
+            const wmo = wmoCodes[cur.weather_code] || { label: 'Moderate', icon: 'cloud' };
+
+            // Update Animated Background Canvas
+            WeatherFX.setAtmosphere(cur.weather_code, cur.is_day);
+
+            // With past_days=1, index 0 of daily is Yesterday, index 1 is Today
+            const todayIdx = 1;
+            const nowHour = new Date().getHours();
+            const todayHourStart = 24 + nowHour; // Index in hourly array corresponding to right now
+
+            // Hero Section
+            document.getElementById('ui-city').innerText = config.city;
+            document.getElementById('ui-temp').innerText = `${fTemp(cur.temperature_2m)}°`;
+            document.getElementById('ui-cond').innerText = wmo.label;
+            document.getElementById('ui-icon').innerText = wmo.icon;
+            document.getElementById('ui-hilo').innerText = `Feels like ${fTemp(cur.apparent_temperature)}° • H: ${fTemp(daily.temperature_2m_max[todayIdx])}° L: ${fTemp(daily.temperature_2m_min[todayIdx])}°`;
+
+            // Yesterday Comparison Badge
+            const yestTemp = hourly.temperature_2m[todayHourStart - 24] ?? cur.temperature_2m;
+            const diff = Math.round(cur.temperature_2m - yestTemp);
+            const diffText = diff === 0 ? "Same temperature as yesterday" :
+                             diff > 0 ? `${Math.abs(fTemp(cur.temperature_2m) - fTemp(yestTemp))}° warmer than yesterday` :
+                                        `${Math.abs(fTemp(cur.temperature_2m) - fTemp(yestTemp))}° cooler than yesterday`;
+            document.getElementById('ui-yesterday').innerHTML = `<span class="material-symbols-rounded" style="font-size:15px;">history</span><span>${diffText}</span>`;
+
+            // AI Wardrobe Recommendations
+            renderWardrobe(cur, daily, todayIdx);
+
+            // Hourly Forecast (Next 24 Hours starting from todayHourStart)
+            const hContainer = document.getElementById('hourly-list');
+            hContainer.innerHTML = '';
+            for (let i = todayHourStart; i < todayHourStart + 24; i++) {
+                if (!hourly.time[i]) break;
+                const timeStr = i === todayHourStart ? 'Now' : new Date(hourly.time[i]).getHours() + ':00';
+                const hWmo = wmoCodes[hourly.weather_code[i]] || wmoCodes[0];
+                const pop = hourly.precipitation_probability[i];
+                hContainer.innerHTML += `
+                    <div class="hour-item">
+                        <span class="hour-time">${timeStr}</span>
+                        <span class="material-symbols-rounded">${hWmo.icon}</span>
+                        <span class="hour-temp">${fTemp(hourly.temperature_2m[i])}°</span>
+                        <span class="hour-pop">${pop > 15 ? pop + '%' : ''}</span>
+                    </div>`;
+            }
+
+            // 7-Day Forecast (Indices 1 to 7)
+            const dContainer = document.getElementById('daily-list');
+            dContainer.innerHTML = '';
+            const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+            const minWeek = Math.min(...daily.temperature_2m_min.slice(1));
+            const maxWeek = Math.max(...daily.temperature_2m_max.slice(1));
+
+            for (let i = 1; i < daily.time.length; i++) {
+                const dName = i === 1 ? 'Today' : days[new Date(daily.time[i]).getDay()];
+                const dWmo = wmoCodes[daily.weather_code[i]] || wmoCodes[0];
+                const pop = daily.precipitation_probability_max[i];
+                const leftPct = ((daily.temperature_2m_min[i] - minWeek) / (maxWeek - minWeek || 1)) * 100;
+                const widthPct = ((daily.temperature_2m_max[i] - daily.temperature_2m_min[i]) / (maxWeek - minWeek || 1)) * 100;
+
+                dContainer.innerHTML += `
+                    <div class="day-row">
+                        <div class="day-name">${dName}</div>
+                        <div class="day-icon">
+                            <span class="material-symbols-rounded">${dWmo.icon}</span>
+                            <span>${pop > 20 ? pop + '%' : ''}</span>
+                        </div>
+                        <div class="day-bar-wrap">
+                            <span style="font-size:13px; color:var(--text-sub)">${fTemp(daily.temperature_2m_min[i])}°</span>
+                            <div class="day-bar"><div class="day-bar-fill" style="left:${leftPct}%; width:${Math.max(widthPct, 10)}%"></div></div>
+                            <span style="font-size:13px; font-weight:600">${fTemp(daily.temperature_2m_max[i])}°</span>
+                        </div>
+                    </div>`;
+            }
+
+            // Air Quality & Pollen
+            const aqi = rawAirData?.current?.us_aqi || 24;
+            const pollenMax = Math.max(
+                rawAirData?.current?.grass_pollen || 0,
+                rawAirData?.current?.birch_pollen || 0,
+                rawAirData?.current?.ragweed_pollen || 0
+            );
+            const pollenLevel = pollenMax > 50 ? 'High' : pollenMax > 15 ? 'Moderate' : 'Low';
+
+            // Bio-Weather & Health Risks
+            const migraineRisk = (cur.surface_pressure < 1006 || cur.surface_pressure > 1026) ? 'Elevated (Pressure Shift)' : 'Low Risk';
+            const jointRisk = (cur.relative_humidity_2m > 75 && cur.temperature_2m < 12) ? 'Moderate-High' : 'Low';
+            const sinusRisk = pollenLevel === 'High' || aqi > 70 ? 'Elevated' : 'Low';
+            const skinRisk = cur.relative_humidity_2m < 35 ? 'Dry Air - Moisturize' : 'Balanced';
+
+            document.getElementById('health-list').innerHTML = `
+                <div class="life-item"><span class="material-symbols-rounded">psychology</span><div><h5>Migraine</h5><p>${migraineRisk}</p></div></div>
+                <div class="life-item"><span class="material-symbols-rounded">accessibility_new</span><div><h5>Joint & Arthritis</h5><p>${jointRisk}</p></div></div>
+                <div class="life-item"><span class="material-symbols-rounded">pulmonology</span><div><h5>Sinus & Allergy</h5><p>${sinusRisk}</p></div></div>
+                <div class="life-item"><span class="material-symbols-rounded">water_drop</span><div><h5>Skin Moisture</h5><p>${skinRisk}</p></div></div>
+            `;
+
+            // Sun Arc, Golden Hour & Moon Phase
+            renderSunAndMoon(daily.sunrise[todayIdx], daily.sunset[todayIdx]);
+
+            // Detailed Widgets
+            const visKm = ((cur.visibility || 10000) / 1000).toFixed(1);
+            document.getElementById('ui-aqi').innerText = `AQI ${aqi}`;
+            document.getElementById('ui-pollen').innerText = `Pollen: ${pollenLevel}`;
+            document.getElementById('ui-uv').innerText = `UV ${Math.round(cur.uv_index)}`;
+            document.getElementById('ui-uv-desc').innerText = `Visibility: ${visKm} km`;
+            document.getElementById('ui-wind').innerText = fWind(cur.wind_speed_10m);
+            document.getElementById('ui-compass').style.transform = `rotate(${cur.wind_direction_10m || 0}deg)`;
+            document.getElementById('ui-gusts').innerText = `Gusts up to ${fWind(cur.wind_gusts_10m || cur.wind_speed_10m)}`;
+            document.getElementById('ui-pressure').innerText = fPress(cur.surface_pressure);
+            document.getElementById('ui-humidity').innerText = `Humidity: ${cur.relative_humidity_2m}%`;
+
+            // Lifestyle Insights
+            const runStatus = (cur.precipitation === 0 && cur.temperature_2m > 5 && cur.temperature_2m < 28) ? 'Ideal Conditions' : 'Indoor Recommended';
+            const hairStatus = cur.relative_humidity_2m > 70 ? 'High Frizz Risk' : 'Smooth & Manageable';
+            const carWash = daily.precipitation_probability_max[todayIdx] < 25 && daily.precipitation_probability_max[todayIdx + 1] < 25 ? 'Great Day' : 'Hold Off (Rain Soon)';
+            const starStatus = cur.weather_code <= 1 ? 'Crystal Clear' : 'Cloud Obstructed';
+
+            document.getElementById('lifestyle-list').innerHTML = `
+                <div class="life-item"><span class="material-symbols-rounded">sprint</span><div><h5>Outdoor Run</h5><p>${runStatus}</p></div></div>
+                <div class="life-item"><span class="material-symbols-rounded">face</span><div><h5>Hair Frizz</h5><p>${hairStatus}</p></div></div>
+                <div class="life-item"><span class="material-symbols-rounded">local_car_wash</span><div><h5>Car Wash</h5><p>${carWash}</p></div></div>
+                <div class="life-item"><span class="material-symbols-rounded">nights_stay</span><div><h5>Stargazing</h5><p>${starStatus}</p></div></div>
+            `;
+
+            evaluateSmartAlerts(cur, daily, todayIdx, pollenLevel);
+        }
+
+        function renderWardrobe(cur, daily, todayIdx) {
+            const items = [];
+            const feels = cur.apparent_temperature;
+            const pop = daily.precipitation_probability_max[todayIdx];
+
+            if (feels <= 5) items.push({ icon: 'ac_unit', title: 'Heavy Winter Coat', sub: 'Thermal layers & gloves' });
+            else if (feels <= 15) items.push({ icon: 'checkroom', title: 'Light Jacket / Hoodie', sub: 'Layered medium warmth' });
+            else if (feels <= 23) items.push({ icon: 'apparel', title: 'Long Sleeve / Tee', sub: 'Comfortable mild attire' });
+            else items.push({ icon: 'sunny', title: 'Breathable Shorts & Tee', sub: 'Light fabrics advised' });
+
+            if (pop >= 35 || cur.precipitation > 0) {
+                items.push({ icon: 'umbrella', title: 'Pack an Umbrella', sub: `${pop}% rain chance today` });
+            }
+            if (cur.uv_index >= 5 || (cur.weather_code <= 1 && cur.is_day)) {
+                items.push({ icon: 'eyeglasses', title: 'Sunglasses & SPF', sub: 'Bright glare protection' });
+            }
+            if (cur.wind_speed_10m >= 22) {
+                items.push({ icon: 'air', title: 'Windbreaker Shell', sub: 'Breezy conditions' });
+            }
+
+            document.getElementById('wardrobe-list').innerHTML = items.map(i => `
+                <div class="wardrobe-chip">
+                    <span class="material-symbols-rounded">${i.icon}</span>
+                    <h5>${i.title}</h5>
+                    <p>${i.sub}</p>
+                </div>
+            `).join('');
+        }
+
+        function renderSunAndMoon(sunriseStr, sunsetStr) {
+            const rise = new Date(sunriseStr);
+            const set = new Date(sunsetStr);
+            const now = new Date();
+
+            const riseTime = sunriseStr.split('T')[1];
+            const setTime = sunsetStr.split('T')[1];
+            document.getElementById('ui-sunrise').innerText = `Sunrise ${riseTime}`;
+            document.getElementById('ui-sunset').innerText = `Sunset ${setTime}`;
+
+            // Golden hour (~45 mins before sunset)
+            const goldenDate = new Date(set.getTime() - 45 * 60000);
+            const goldenStr = goldenDate.toTimeString().slice(0, 5);
+            document.getElementById('ui-golden-hour').innerText = `📸 Golden Hour: ${goldenStr}`;
+
+            let pct = ((now - rise) / (set - rise)) * 100;
+            pct = Math.max(0, Math.min(100, pct));
+            document.getElementById('sun-bar-fill').style.width = `${pct}%`;
+            document.getElementById('sun-dot').style.left = `${pct}%`;
+
+            const minsLeft = Math.round((set - now) / 60000);
+            document.getElementById('ui-daylight-left').innerText = minsLeft > 0 && now > rise ? `${Math.floor(minsLeft/60)}h ${minsLeft%60}m daylight left` : 'Nighttime';
+
+            // Moon Phase Calculation
+            const lp = 2551443;
+            const newMoon = new Date(1970, 0, 7, 20, 35, 0);
+            const phase = ((now.getTime() - newMoon.getTime()) / 1000) % lp / lp;
+            const phases = ['🌑 New Moon', '🌒 Waxing Crescent', '🌓 First Quarter', '🌔 Waxing Gibbous', '🌕 Full Moon', '🌖 Waning Gibbous', '🌗 Last Quarter', '🌘 Waning Crescent'];
+            document.getElementById('ui-moon-phase').innerText = phases[Math.floor(phase * 8)];
+        }
+
+        function evaluateSmartAlerts(cur, daily, idx, pollenLevel) {
+            const alerts = [];
+            if (config.alerts.umbrella && daily.precipitation_probability_max[idx] >= 40) {
+                alerts.push({ icon: 'umbrella', title: 'Take an Umbrella!', desc: `${daily.precipitation_probability_max[idx]}% chance of rain forecasted today.` });
+            }
+            if (config.alerts.snow && daily.snowfall_sum[idx] > 0.5) {
+                alerts.push({ icon: 'severe_cold', title: 'Heavy Snow Alert', desc: `Snow accumulation of ${daily.snowfall_sum[idx]} cm expected.` });
+            }
+            if (config.alerts.pollen && pollenLevel === 'High') {
+                alerts.push({ icon: 'grass', title: 'Heavy Pollen Warning', desc: 'High allergen levels detected. Take antihistamines if sensitive.' });
+            }
+            if (config.alerts.cold && daily.temperature_2m_min[idx] <= 4) {
+                alerts.push({ icon: 'thermostat', title: 'Low Temperature Freeze', desc: `Temperatures dropping to ${fTemp(daily.temperature_2m_min[idx])}°. Dress warmly!` });
+            }
+            if (config.alerts.uv && daily.uv_index_max[idx] >= 6) {
+                alerts.push({ icon: 'sunny', title: 'High UV Radiation', desc: `Peak UV index of ${Math.round(daily.uv_index_max[idx])}. Apply sunscreen.` });
+            }
+
+            const card = document.getElementById('alerts-card');
+            const list = document.getElementById('alerts-list');
+            if (alerts.length > 0) {
+                card.style.display = 'block';
+                list.innerHTML = alerts.map(a => `
+                    <div class="alert-item">
+                        <span class="material-symbols-rounded">${a.icon}</span>
+                        <div class="alert-text"><h4>${a.title}</h4><p>${a.desc}</p></div>
+                    </div>`).join('');
+            } else {
+                card.style.display = 'none';
+            }
+        }
+
+        function sendTestNotification() {
+            if (!("Notification" in window)) return alert("Browser does not support notifications.");
+            Notification.requestPermission().then(perm => {
+                if (perm === "granted") {
+                    new Notification("Aether Weather Pro ☔", {
+                        body: `Smart Alert: Current temp in ${config.city} is ${document.getElementById('ui-temp').innerText} (${document.getElementById('ui-cond').innerText}).`,
+                        icon: "https://cdn-icons-png.flaticon.com/512/1163/1163661.png"
+                    });
+                } else {
+                    alert("Please allow notification permissions in your browser settings.");
+                }
+            });
+        }
+
+        function setupPWA() {
+            const manifest = {
+                name: "Aether Weather Pro",
+                short_name: "Aether",
+                start_url: ".",
+                display: "standalone",
+                background_color: "#0f172a",
+                theme_color: "#0f172a",
+                icons: [{
+                    src: "https://cdn-icons-png.flaticon.com/512/1163/1163661.png",
+                    sizes: "512x512",
+                    type: "image/png"
+                }]
+            };
+            const blob = new Blob([JSON.stringify(manifest)], { type: 'application/json' });
+            const link = document.createElement('link');
+            link.rel = 'manifest';
+            link.href = URL.createObjectURL(blob);
+            document.head.appendChild(link);
+        }
+    </script>
+</body>
+</html>
